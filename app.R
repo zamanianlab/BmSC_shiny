@@ -6,13 +6,13 @@
 #
 #    http://shiny.rstudio.com/
 #
-install.packages("shiny")
-install.packages("shinythemes")
-install.packages('scattermore')
-install.packages('shinydashboard')
-install.packages('feather')
-install.packages('promises')
-install.packages('future')
+# install.packages("shiny")
+# install.packages("shinythemes")
+# install.packages('scattermore')
+# install.packages('shinydashboard')
+# install.packages('feather')
+# install.packages('promises')
+# install.packages('future')
 
 library(shiny)
 library(shinythemes)
@@ -25,6 +25,7 @@ library(ggtext)
 library(feather)
 library(promises)
 library(future)
+library(viridis)
 
 
 # Load data
@@ -35,8 +36,6 @@ mapping <- read_feather("~/Desktop/mapping.feather")
 
 
 
-
-#saveRDS(sc_data, "~/Desktop/shiny_data.RDS")
 #-----------------------------------------------------------------------------
 
 col_list <- c("Gene Name", "Gene ID", "Counts", "Cluster", "Annotation", "Treatment")
@@ -73,7 +72,7 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
        tabPanel("UMAP Exploration",
                 sidebarLayout(
                   sidebarPanel(
-                     sidebarSearchForm(label = "Search Gene_id", "Search","searchgene"),
+                     sidebarSearchForm(label = "Gene ID", "Search", buttonId = "searchbutton"),
                      width = 3),
               mainPanel("Under Construction", value = "mapping", plotOutput(outputId = "global_umap")))),
 
@@ -82,8 +81,6 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
   # Downloads
         tabPanel("Downloads",
                  mainPanel("Under Construction"))
-                
-    
    
 ))
 
@@ -95,79 +92,47 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
 # Define server logic
 server <- function(input, output) {
   
-  # render datatable for plot
+  # render datatable
   output$table = DT::renderDataTable(reduced)
-  
-  
-  output$global_umap <- renderPlot({
-    ggplot(data = mapping, aes(x = UMAP_1, y = UMAP_2))+
-      geom_scattermore(aes(color = Cluster), size = 0.5, show.legend = FALSE)+
-      geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 3, fontface = "plain")+
-      scale_size_area(max_size = 15)+
-      scale_color_manual(values = c("#c1d6d3", "#5c8492", "#b25757", "#6a9491", "#7a7f84", "#cab6b2", "#fae2af", "#f3933b","#ac8287", "#65838d", "#82aca7", "#fe906a", "#e3e2e1", "#e89690","#cd4c42", "#6f636b", "#82ac92", "#a26f6a", "#184459", "#596c7f","#263946", "#d97f64", "#a0b4ac", "#e3e2e1", "#fbc1c1", "#7f93a2", "#d76660", "#cac6b9", "#e3e2e1", "#cb8034"), labels = function(color) str_wrap(color, width = 8))+
-      labs( color = "Cell Type")+
-      theme(text=element_text(family="Helvetica"),
-            axis.text = element_blank(),
-            axis.title= element_blank(),
-            axis.ticks = element_blank(),
-            legend.text = element_markdown(size = 10, face = "plain"),
-            legend.key.size = unit(0.2, "cm"),
-            panel.background = element_blank(),
-            legend.margin = margin(0, 0, 0, 0.5, "cm"),
-            axis.line = element_blank(),
-            legend.background=element_blank(),
-            legend.key = element_blank(),
-            plot.margin = margin(0.5, 0.5, 0.5, 0.25, unit = "cm"))+
-      guides(color = guide_legend(override.aes = list(size=3), ncol = 1))+
-      NULL
-    })
-  
-  
+
   
   
 
-  # render interactive umap
-    # interactive search
-      #make a data frame that changes when the user searches a WBGeneID
-      # filteredGeneIDs = reactive({
-      #   if(input$Search == "") {
-      #     df = dataset
-      #   }
-      #   else {
-      #     df = dataset %>% dplyr::filter(gene_id == toupper(input$Search))
-      #   }
-      #   df
-      # })
-      # 
-      # 
-      # filteredGeneIDs = reactive({ #make umap based on filtered data
-      #   ggplot(data = filteredGeneIDs(), aes(x = UMAP_1, y = UMAP_2))+
-      #     geom_scattermore(aes(color = cluster), size = 0.1, show.legend = FALSE)+
-      #     geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 3, fontface = "plain")+
-      #     scale_size_area(max_size = 15)+
-      #     scale_color_manual(values = c("#c1d6d3", "#5c8492", "#b25757", "#6a9491", "#7a7f84", "#cab6b2", "#fae2af", "#f3933b","#ac8287", "#65838d", "#82aca7", "#fe906a", "#e3e2e1", "#e89690","#cd4c42", "#6f636b", "#82ac92", "#a26f6a", "#184459", "#596c7f","#263946", "#d97f64", "#a0b4ac", "#e3e2e1", "#fbc1c1", "#7f93a2", "#d76660", "#cac6b9", "#e3e2e1", "#cb8034"), labels = function(color) str_wrap(color, width = 8))+
-      #     labs( color = "Cell Type")+
-      #     theme(text=element_text(family="Helvetica"),
-      #           axis.text = element_blank(),
-      #           axis.title= element_blank(),
-      #           legend.text = element_markdown(size = 10, face = "plain"),
-      #           legend.key.size = unit(0.2, "cm"),
-      #           panel.background = element_blank(),
-      #           legend.margin = margin(0, 0, 0, 0.5, "cm"),
-      #           axis.line = element_blank(),
-      #           legend.background=element_blank(),
-      #           legend.key = element_blank(),
-      #           plot.margin = margin(0.5, 0.5, 0.5, 0.25, unit = "cm"))+
-      #     guides(color = guide_legend(override.aes = list(size=3), ncol = 1))+
-      #     NULL
-      #   })
+ # render reactive umap
+  filteredGeneIDs <- reactive({
+    if(input$Search == "") {
+      df = mapping
+    }
+    else {
+      df = mapping %>% dplyr::filter("Gene ID" %in% toupper(input$Search))
+    }
+    df
+  })
+
+  #make umap based on filtered data
+      output$global_umap = renderPlot({ 
+        ggplot(data = filteredGeneIDs(), aes(x = UMAP_1, y = UMAP_2))+
+          geom_scattermore(data = mapping, color = "grey", size = 0.5)+
+          geom_scattermore(aes(color = Counts), size = 1, show.legend = TRUE)+
+          scale_color_viridis()+
+          labs(color = "Counts")+
+          theme(text=element_text(family="Helvetica"),
+                axis.text = element_blank(),
+                axis.title= element_blank(),
+                axis.ticks = element_blank(),
+                legend.text = element_markdown(size = 10, face = "plain"),
+                legend.key.size = unit(0.2, "cm"),
+                panel.background = element_blank(),
+                legend.margin = margin(0, 0, 0, 0.5, "cm"),
+                axis.line = element_blank(),
+                legend.background=element_blank(),
+                legend.key = element_blank()),
+          guides(color = guide_legend(override.aes = list(size=3), ncol = 1))+
+          NULL
+        })
 
 
-      # output$global_umap <- renderPlot({ #render the plot with an error if there is no data
-      #   validate(
-      #     need(nrow(filteredGeneIDs()) > 0, "GeneID not found"))
-      #   })
-      
+
 
     }
     
@@ -175,3 +140,39 @@ server <- function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
+
+
+
+
+
+
+
+
+
+
+
+#scratchpad
+
+output$global_umap <- renderPlot({
+  ggplot(data = mapping, aes(x = UMAP_1, y = UMAP_2))+
+    geom_scattermore(aes(color = Cluster), size = 0.5, show.legend = FALSE)+
+    geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 3, fontface = "plain")+
+    scale_size_area(max_size = 15)+
+    scale_color_manual(values = c("#c1d6d3", "#5c8492", "#b25757", "#6a9491", "#7a7f84", "#cab6b2", "#fae2af", "#f3933b","#ac8287", "#65838d", "#82aca7", "#fe906a", "#e3e2e1", "#e89690","#cd4c42", "#6f636b", "#82ac92", "#a26f6a", "#184459", "#596c7f","#263946", "#d97f64", "#a0b4ac", "#e3e2e1", "#fbc1c1", "#7f93a2", "#d76660", "#cac6b9", "#e3e2e1", "#cb8034"), labels = function(color) str_wrap(color, width = 8))+
+    labs( color = "Cell Type")+
+    theme(text=element_text(family="Helvetica"),
+          axis.text = element_blank(),
+          axis.title= element_blank(),
+          axis.ticks = element_blank(),
+          legend.text = element_markdown(size = 10, face = "plain"),
+          legend.key.size = unit(0.2, "cm"),
+          panel.background = element_blank(),
+          legend.margin = margin(0, 0, 0, 0.5, "cm"),
+          axis.line = element_blank(),
+          legend.background=element_blank(),
+          legend.key = element_blank(),
+          plot.margin = margin(0.5, 0.5, 0.5, 0.25, unit = "cm"))+
+    guides(color = guide_legend(override.aes = list(size=3), ncol = 1))+
+    NULL
+  })
