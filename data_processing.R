@@ -1,6 +1,7 @@
 install.packages("feather")
 
 library(feather)
+library(Seurat)
 
 
 #-----------------------------------------------------------------------------
@@ -93,7 +94,7 @@ gene_list <- read.csv("~/Desktop/gene_list.csv")
 gene_list <- gene_list %>% 
   select(-"Genome.project", -"Transcript.stable.ID", -"Gene.description")
 
-gene_list$Gene.stable.ID <- gene_list$Gene.stable.ID[!duplicated(gene_list$Gene.stable.ID)]
+gene_list <- gene_list[!duplicated(gene_list),]
 
 colnames(gene_list) <- c("gene_id", "gene_name")
 
@@ -124,12 +125,66 @@ mapping$Counts <- round(mapping$Counts, digits = 3)
 col_order <- c("Gene Name", "Gene ID", "Counts", "Cluster", "Annotation", "Treatment", "Index", "UMAP_1", "UMAP_2")
 mapping<- mapping[,col_order]
 
+#-----------------------------------------------------------
+# Generate dataframe for dot plots
+#calculate average gene expression per cluster using seurat's DotPlot function
+list <- gene_list$gene_id
+dot <- DotPlot(new_combined, features = list,  assay = "RNA", scale = FALSE)
+dot <- dot$data
+dot <- rownames_to_column(dot, "genes")
+dot <- dot %>% 
+  mutate(gene_id = substr(genes, 1, 14)) %>% 
+  select(-"genes")
+
+#rename clusters
+dot$id<- factor(dot$id, levels = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26"), labels = c("1", "2", "3", "4", "5","6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27"))
+
+dot <- dot %>% 
+  mutate(ID = case_when(
+    id == "1" ~ "Unannotated",
+    id == "2" ~ "MS",
+    id == "3" ~ "Unannotated",
+    id == "4" ~ "Unannotated",
+    id == "5" ~ "Unannotated",
+    id == "6" ~ "C",
+    id == "7" ~ "Unannotated",
+    id == "8" ~ "Unannotated",
+    id == "9" ~ "MD",
+    id == "10" ~ "Unannotated",
+    id == "11" ~ "Neuron",
+    id == "12" ~ "Neuron",
+    id == "13" ~ "Neuron",
+    id == "15" ~ "S",
+    id == "14" ~ "CA",
+    id == "16" ~ "Unannotated",
+    id == "17" ~ "MD",
+    id == "18" ~ "Neuron",
+    id == "19" ~ "MS",
+    id == "20" ~ "Unannotated",
+    id == "21" ~ "Unannotated",
+    id == "22" ~ "IB",
+    id == "23" ~ "Neuron",
+    id == "24" ~ "Neuron",
+    id == "25" ~ "Neuron",
+    id == "26" ~ "Neuron",
+    id == "27" ~ "Neuron"))
+
+
+dot$ID <- factor(dot$ID, levels = c("MS","MD", "C", "S", "CA", "IB", "Neuron", "Unannotated"))
+dot <- dot %>% select(-"features.plot")
+
+dot <- dot %>% 
+  left_join(gene_list)
 
 
 
 
+
+# export dataframes
 write_feather(reduced, "~/Desktop/reduced.feather")
 write_feather(mapping, "~/Desktop/mapping.feather")
 write_feather(combined, "~/Desktop/complete.feather")
+write_feather(dot, "~/Desktop/dot.feather")
+
 
 
