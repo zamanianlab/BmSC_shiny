@@ -13,6 +13,7 @@
 # install.packages('feather')
 # install.packages('promises')
 # install.packages('future')
+# devtools::install_github("Roche/ggtips")
 
 library(shiny)
 library(shinythemes)
@@ -27,7 +28,7 @@ library(promises)
 library(future)
 library(viridis)
 library(shinyWidgets)
-
+library(ggtips) 
 
 # Load data
 dataset <- read_feather("~/Desktop/shiny_data.feather")
@@ -73,12 +74,14 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
  #UMAP Exploration  
        tabPanel("UMAP Exploration",
                 sidebarLayout(
-                  sidebarPanel("Search for markers using the WBGeneID or gene name",
-                     searchInput(inputId = "Search", label = NULL, placeholder = "Bma-myo-3", btnSearch = icon("magnifying-glass")),
+                  sidebarPanel(
+                     searchInput(inputId = "Search", label = NULL, placeholder = "Bma-myo-3", btnSearch = icon("search")),
                      width = 3),
-              mainPanel("Exploring Bma mf sc atlas...", 
+              mainPanel("Exploring the single-cell atlas by searching a WBGene ID or gene name.",
                         plotOutput(outputId = "global_umap"), 
                         plotOutput(outputId = "dotplot"),
+                        p(""),
+                        p("MS=Muscle, MD=Mesoderm, C=Coelomocyte, S=Secretory, CA=Canal-associated, IB=Inner body"),
                         width = 9))),
 
  # Treatment Comparison
@@ -103,7 +106,7 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
 
 
 # Define server logic
-server <- function(input, output) {
+server <- function(input, output, session) {
   
   # render datatable
   output$table = DT::renderDataTable(reduced)
@@ -115,15 +118,20 @@ server <- function(input, output) {
    #    {if(input$Search != "") filter(Gene_ID == input$Search)
    #    else .}
    #  })
-  
-  
 
-
+  
+  # Custom content for the tooltip label of the UMAP
+      # customContentFunction <- function(mapping) {
+      #   Annotation <- as.character(mapping$Annotation)
+      #   Cluster <- as.character(mapping$Cluster)
+      #   paste(Annotation, Cluster)
+      # }
+     
   # make umap based on filtered data
-      output$global_umap <- renderPlot({ 
-        plotdata <- subset(mapping, mapping$`Gene ID` == input$Search | mapping$`Gene Name` == input$Search)
-        
-        ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+      output$global_umap <- renderPlot({
+      plotdata <- subset(mapping, mapping$`Gene ID` == input$Search | mapping$`Gene Name` == input$Search) 
+      
+      ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
           geom_point(data = index, color = "grey", size = 0.5)+
           geom_point(aes(color = Counts), size = 1)+
           geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 4, fontface = "plain")+
@@ -138,8 +146,11 @@ server <- function(input, output) {
                 axis.line = element_blank(),
                 legend.background=element_blank(),
                 legend.key = element_blank())
-        })
+    
+    })
 
+
+      
       
     # dot plot based on filtered input (reactive)
       output$dotplot <- renderPlot({
@@ -151,7 +162,7 @@ server <- function(input, output) {
                  scale_color_viridis()+
                  labs(x = "Genes", y = "Cluster", size = "Proportion (%)", color = "Avg. Exp.")+
                  facet_grid(cols = vars(ID), rows = vars(gene_name), space = "free", scales = "free", drop = TRUE)+
-                 theme(text=element_text(family="Helvetica"),
+                 theme(#text=element_text(family="Helvetica"),
                        panel.background = element_blank(),
                        axis.line = element_line (colour = "black"),
                        legend.background=element_blank(),
