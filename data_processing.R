@@ -116,6 +116,42 @@ colnames(reduced) <- c("Gene Name", "Gene ID", "Counts", "Cluster", "Annotation"
 reduced$Counts <- round(reduced$Counts, digits = 3)
 
 
+
+
+
+
+tmp <- response %>% 
+  mutate(ID = case_when(
+    Cluster == "1" ~ "Unannotated",
+    Cluster == "2" ~ "MS",
+    Cluster == "3" ~ "Unannotated",
+    Cluster == "4" ~ "Unannotated",
+    Cluster == "5" ~ "Unannotated",
+    Cluster == "6" ~ "C",
+    Cluster == "7" ~ "Unannotated",
+    Cluster == "8" ~ "Unannotated",
+    Cluster == "9" ~ "MD",
+    Cluster == "10" ~ "Unannotated",
+    Cluster == "11" ~ "Neuron",
+    Cluster == "12" ~ "Neuron",
+    Cluster == "13" ~ "Neuron",
+    Cluster == "14" ~ "CA",
+    Cluster == "15" ~ "S",
+    Cluster == "16" ~ "Unannotated",
+    Cluster == "17" ~ "MD",
+    Cluster == "18" ~ "Neuron",
+    Cluster == "19" ~ "MS",
+    Cluster == "20" ~ "Unannotated",
+    Cluster == "21" ~ "Unannotated",
+    Cluster == "22" ~ "IB",
+    Cluster == "23" ~ "Neuron",
+    Cluster == "24" ~ "Neuron",
+    Cluster == "25" ~ "Neuron",
+    Cluster == "26" ~ "Neuron",
+    Cluster == "27" ~ "Neuron"))
+
+
+
 mapping <- combined %>% 
   select(-"nCount_RNA", -"nFeature_RNA", -"orig.ident")
 colnames(mapping) <- c("Gene ID", "Gene Name", "Counts", "Cluster", "Annotation", "Index", "UMAP_1", "UMAP_2", "Treatment")
@@ -178,6 +214,71 @@ dot <- dot %>%
 
 
 
+#-----------------------------------------------------------
+# Load dataframe from DEG analysis and reformat 
+response <- readRDS("~/Library/CloudStorage/Box-Box/ZamanianLab/LabMembers/Clair/project_singlecell/BmSinglecell-ms/6_Figures/Figure_5/IVM_response.RDS")
+
+response <- response %>%
+  left_join(gene_list)
+  
+colnames(response) <- c("Gene ID", "p_val", "avg_log2FC", "pct.1", "pct.2", "p_val_adj", "Cluster", "Gene Name")
+
+col_order <- c("Gene Name", "Gene ID", "Cluster", "p_val", "avg_log2FC", "pct.1", "pct.2", "p_val_adj")
+
+response<- response[,col_order]
+
+response <- response %>% 
+  mutate(ID = case_when(
+    Cluster == "1" ~ "Unannotated",
+    Cluster == "2" ~ "MS",
+    Cluster == "3" ~ "Unannotated",
+    Cluster == "4" ~ "Unannotated",
+    Cluster == "5" ~ "Unannotated",
+    Cluster == "6" ~ "C",
+    Cluster == "7" ~ "Unannotated",
+    Cluster == "8" ~ "Unannotated",
+    Cluster == "9" ~ "MD",
+    Cluster == "10" ~ "Unannotated",
+    Cluster == "11" ~ "Neuron",
+    Cluster == "12" ~ "Neuron",
+    Cluster == "13" ~ "Neuron",
+    Cluster == "14" ~ "CA",
+    Cluster == "15" ~ "S",
+    Cluster == "16" ~ "Unannotated",
+    Cluster == "17" ~ "MD",
+    Cluster == "18" ~ "Neuron",
+    Cluster == "19" ~ "MS",
+    Cluster == "20" ~ "Unannotated",
+    Cluster == "21" ~ "Unannotated",
+    Cluster == "22" ~ "IB",
+    Cluster == "23" ~ "Neuron",
+    Cluster == "24" ~ "Neuron",
+    Cluster == "25" ~ "Neuron",
+    Cluster == "26" ~ "Neuron",
+    Cluster == "27" ~ "Neuron"))
+
+
+response <- response %>% factor(response$ID, levels = c("MS","MD", "C", "S", "CA", "IB", "Neuron", "Unannotated"))
+
+response <- response %>% 
+  mutate(ID = case_when(
+    ID == "Unannotated" ~ "Unannotated",
+    ID == "MS" ~ "Body Wall Muscle",
+    ID == "C" ~ "Coelomocyte",
+    ID == "MD" ~ "Mesoderm",
+    ID == "Neuron" ~ "Neuron",
+    ID == "CA" ~ "Canal-associated",
+    ID == "S" ~ "Secretory",
+    ID == "IB" ~ "Inner body"))
+
+
+response$avg_log2FC <- round(response$avg_log2FC, digits = 3)
+
+response <- response %>%  select(-"pct.1", -"pct.2")
+
+
+
+
 
 
 # export dataframes
@@ -185,6 +286,6 @@ write_feather(reduced, "~/Desktop/reduced.feather")
 write_feather(mapping, "~/Desktop/mapping.feather")
 write_feather(combined, "~/Desktop/complete.feather")
 write_feather(dot, "~/Desktop/dot.feather")
-
+write_feather(response, "~/Desktop/response.feather")
 
 

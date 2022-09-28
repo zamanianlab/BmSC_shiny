@@ -1,103 +1,166 @@
+# Shiny application for the exploration of the Brugia malayi microfilariae single cell atlas
+# Henthorn et al. 2022
+# chenthorn@wisc.edu
 #
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
 #
 # install.packages("shiny")
 # install.packages("shinythemes")
-# install.packages('scattermore')
-# install.packages('shinydashboard')
-# install.packages('feather')
-# install.packages('promises')
-# install.packages('future')
-# devtools::install_github("Roche/ggtips")
+# install.packages("shinydashboard")
+# install.packages("shinyWidgets")
+# install.packages("tidyverse")
+# install.packages("dplyr")
+# install.packages("ggtext")
+# install.packages("ggrepel")
+# install.packages("viridis")
+# install.packages("here")
 
+# BiocManager::install('OmnipathR') #for record download from zenodo
+
+# shiny app libraries
 library(shiny)
 library(shinythemes)
+library(shinydashboard)
+library(shinyWidgets)
+
+#plotting libraries
 library(dplyr)
 library(ggplot2)
 library(tidyverse)
-library(scattermore)
-library(shinydashboard)
 library(ggtext)
-library(feather)
-library(promises)
-library(future)
 library(viridis)
-library(shinyWidgets)
-library(ggtips) 
+library(ggrepel)
+
+#organization
+#library(here)
+
+# record download from zenodo
+library(OmnipathR)
+
+
+setwd("~/GitHub/BmSC_shiny")
+
 
 # Load data
-dataset <- read_feather("~/Desktop/shiny_data.feather")
-reduced <- read_feather("~/Desktop/reduced.feather")
-mapping <- read_feather("~/Desktop/mapping.feather")
-index <- read_feather("~/Desktop/index.feather")
-dot <- read_feather("~/Desktop/dot.feather")
+load(file = "conserved_markers.rda")
+load(file = "dot.rda")
+load(file = "index.rda")
+load(file = "response.rda")
+#load(file = "~/Desktop/expression_matrix.rda")
 
 
+mapping <- zenodo_download(
+  zenodo_record = 7110316,
+  zenodo_fname = 'Bma_mf_sc_data.zip',
+  path = ('Bma_mf_sc_data/gene_expression_matrix.csv'))
 
-#-----------------------------------------------------------------------------
+seurat <- zenodo_download(
+  zenodo_record = 7110316,
+  zenodo_fname = 'Bma_mf_sc_data.zip',
+  path = ('Bma_mf_sc_data/Bmalayi_mf_sc.h5Seurat'))
 
-col_list <- c("Gene Name", "Gene ID", "Counts", "Cluster", "Annotation", "Treatment")
+anndata <- zenodo_download(
+  zenodo_record = 7110316,
+  zenodo_fname = 'Bma_mf_sc_data.zip',
+  path = ('Bma_mf_sc_data/Bmalayi_mf_sc.h5ad'))
 
-# Load color palette
-dakota <-c("#cd4c42", "#5c8492", "#b25757", "#fe906a", "#6f636b", "#6a9491", "#82ac92", "#a26f6a", "#184459", "#596c7f", "#d97f64", "#263946", "#bebab6", "#7a7f84", "#cab6b2", "#fae2af", "#f3933b","#65838d", "#82aca7", "#a0b4ac", "#b5b9b0", "#fbc1c1", "#e89690", "#d76660", "#cac6b9", "#878787", "#cb8034", "#7f93a2", "#ac8287", "#c1d6d3")
 
+# Load cluster annotations csv
 clusters <- read.csv("~/GitHub/BmSC_shiny/fig2a_newlabels.csv")
 
+#-----------------------------------------------------------------------------
+# Shiny Application
 
 # Define UI for application
 ui <- fluidPage(theme = shinytheme("cerulean"),
-                navbarPage("B. malayi SC",
+                navbarPage(HTML("<i> B. malayi </i> SC"),
                            
- # About Page            
-        tabPanel("About",
-                 mainPanel(title = "About",
-                           p(h2("Welcome")),
-                           p("Single-cell atlas of B. malayi microfilariae. Come and explore"),
-                           p(tags$a(href="https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1","bioRxiv")),
-                           p(tags$a(href="https://github.com/zamanianlab/Bmsinglecell-ms","Github")))),
-                  
- 
- #Data Table
-        tabPanel("Dataset Table",
-                  sidebarLayout(
-                    sidebarPanel(
-                      checkboxGroupInput("show_vars", "Columns:", names(reduced), selected=col_list),
-                      width = 2),
-                  mainPanel(title = "BmaSC Table", value = "reduced", DT::dataTableOutput("table")))),
- 
- 
- #UMAP Exploration  
-       tabPanel("UMAP Exploration",
-                sidebarLayout(
-                  sidebarPanel(
-                     searchInput(inputId = "Search", label = NULL, placeholder = "Bma-myo-3", btnSearch = icon("search")),
-                     width = 3),
-              mainPanel("Exploring the single-cell atlas by searching a WBGene ID or gene name.",
-                        plotOutput(outputId = "global_umap"), 
-                        plotOutput(outputId = "dotplot"),
-                        p(""),
-                        p("MS=Muscle, MD=Mesoderm, C=Coelomocyte, S=Secretory, CA=Canal-associated, IB=Inner body"),
-                        width = 9))),
+  # About Page            
+      tabPanel("About",
+                 fluidRow(
+                 column(12, 
+                        p(h1("Welcome")),
+                        p(HTML("This app serves as a tool to easily explore the <i> Brugia malayi </i> microfilariae single-cell transcriptomic atlas presented in:")), 
+                        div(p(h4(HTML(paste0(a(href= "https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1", "Resolving the origins of secretory products and anthelmintic responses in a human parasitic nematode at single-cell resolution"), "."))))),
+                        #p(tags$a(href="https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1","bioRxiv")),
+                        #p(tags$a("GitHub", href="https://github.com/zamanianlab/Bmsinglecell-ms")),
+                        div(p(HTML(paste0("This data was captured using the 10x Genomics platform and analyzed using a variety of single-cell focused R packages including Seurat. All data can be downloaded from the ‘Downloads' tab for personal analysis. A local copy of the app can be installed from the", a(href="https://github.com/chenthorn/BmSC_shiny", " GitHub repo "), "if exploration of the data is inhibited by heavy traffic on the server.")))),
+                        div(p(HTML(paste0("Please report bugs and other app issues to the GitHub repo", a(href="https://github.com/chenthorn/BmSC_shiny/issues", " Issues board"), ".")))))),
+               fluidRow(
+                column(2),
+                column(4, imageOutput("umap_image")),
+                column(6)),
+               fluidRow(                 
+                 column(3,
+                        p(h6("Last updated 09/28/2022"))),
+                 column(9))),
+           
+  
+   # UMAP Exploration  
+      tabPanel("UMAP Exploration",
+          p("Enter a list of gene names or WBGene IDs in the search box below to begin exploring the single-cell atlas.",
+            downloadButton("save_umap", label = "", icon = shiny::icon("arrow-down"), style="float:right")),
+          sidebarLayout(
+            sidebarPanel(
+              textAreaInput(inputId = "Search", label = NULL, placeholder = "Bma-myo-3", width = "150px", height = "100px"),
+                  p(""),
+                  p("Plot Options:"),
+                  checkboxInput("exp_counts", label = "Counts", value = FALSE),
+                  checkboxInput("exp_distribution", label = "Distribution", value = FALSE),
+                  p("Label Options:"),
+                  checkboxInput("cluster_id", label = "Cluster ID", value = FALSE),
+                  width = 3),
+          mainPanel(#downloadButton("save_umap", label = "", icon = shiny::icon("arrow-down"), style="float:right"),
+                  plotOutput(outputId = "global_umap", hover = hoverOpts("plot_hover", delayType = "debounce")),
+                  #bsTooltip("tooltip", title = "Cluster annotation:", placement = "left", trigger = "hover"),
+                  uiOutput("hover_info", style = "pointer-events: none"),
+                  width = 9)),
+          p(""),
+          mainPanel(plotOutput(outputId = "dotplot"),
+                    p(""),
+                    p("MS=Muscle, MD=Mesoderm, C=Coelomocyte, S=Secretory, CA=Canal-associated, IB=Inner body"), width = 12)),
 
- # Treatment Comparison
- tabPanel("Treatment",
-     sidebarLayout(
-       sidebarPanel(
-         selectInput(inputId = "Condition",
-             label = "Treatment",
-             choices = c("Untreated", "Ivermectin (1µM)"),
-             selected = NULL)),
-      mainPanel("Under Construction"))),
- 
-  # Downloads
-        tabPanel("Downloads",
-                 mainPanel("Under Construction"))
-   
+
+  
+   # DEG Analysis
+      tabPanel("DEG Analysis",
+                  tags$head(tags$style(HTML(".shiny-split-layout > div {overflow: visible}"))),
+         mainPanel(
+              tabsetPanel(type = "tabs",
+                  tabPanel("Cluster-based",
+                              p(""),
+                              p("Differental gene expression was conducted using the Seurat FindConservedMarkers() function on the integrated data. The DEGs for the untreated control are shown below. Choose from the dropdown lists to compare cluster DEGs."),
+                              splitLayout(
+                              selectInput(inputId = "deg_pop1", label = "Group 1", choices = c("All","Canal-associated", "Coelomocyte", "Inner body", "Mesoderm", "Muscle", "Neuron", "Secretory", "Unannotated")),
+                              selectInput(inputId = "deg_pop2", label = "Group 2", choices = c("All","Canal-associated", "Coelomocyte", "Inner body", "Mesoderm", "Muscle", "Neuron", "Secretory", "Unannotated"))),
+                              plotOutput(outputId = "vol_cluster"),
+                              DT::dataTableOutput("table_cluster")),
+                  tabPanel("Treatment",
+                              p(""),
+                              p("Differential gene expression comparing the untreated control to cell suspensions treated with ivermectin (IVM; 1 µM) was completed using the Seurat FindMarkers() function on the integrated data."),
+                              checkboxInput("vol_facet", label = "Facet by Cluster", value = FALSE),
+                              plotOutput(outputId = "vol_treatment"),
+                              DT::dataTableOutput("table_treatment"))),
+                          width = 12)),
+
+      
+    # Downloads
+      tabPanel("Downloads",
+          mainPanel(
+            p(h4("All datasets used in this app can be downloaded with the links below:")),
+            tags$ul(
+              p(tags$li("Gene expression matrix with annotation",
+              downloadLink(outputId = "umap_download", label = "Download"))),
+              p(tags$li("Dotplot gene expresison per cluster",
+              downloadLink(outputId = "dot_download", label = "Download"))),
+              p(tags$li("Differentially expressed genes by cluster",
+              downloadLink(outputId = "deg_cluster_download", label = "Download"))),
+              p(tags$li("Differentially expressed genes by treatment",
+              downloadLink(outputId = "deg_treatment_download", label = "Download"))),
+              p(tags$li("Integrated datasets of treated and untreated cell populations",
+              downloadLink(outputId = "seurat", label = "Seurat"),
+              downloadLink(outputId = "anndata", label = "AnnData")))),
+            width = 12))
+
 ))
 
 
@@ -106,104 +169,430 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
 
 
 # Define server logic
-server <- function(input, output, session) {
-  
-  # render datatable
-  output$table = DT::renderDataTable(reduced)
-  
+server <- function(input, output) {
 
-   # # render reactive umap
-   #  filteredGeneIDs <- reactive({
-   #    mapping %>%
-   #    {if(input$Search != "") filter(Gene_ID == input$Search)
-   #    else .}
-   #  })
+## Welcome page ---------------------------------------------------
+      output$umap_image <- renderImage({
+        list(src = "www/umap.jpg")
+             #width = "auto",
+             #height = "auto")
+      }, deleteFile = F)
 
   
-  # Custom content for the tooltip label of the UMAP
-      # customContentFunction <- function(mapping) {
-      #   Annotation <- as.character(mapping$Annotation)
-      #   Cluster <- as.character(mapping$Cluster)
-      #   paste(Annotation, Cluster)
-      # }
+
+
+## UMAP Exploration ------------------------------------------------------  
      
-  # make umap based on filtered data
-      output$global_umap <- renderPlot({
-      plotdata <- subset(mapping, mapping$`Gene ID` == input$Search | mapping$`Gene Name` == input$Search) 
-      
-      ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
-          geom_point(data = index, color = "grey", size = 0.5)+
-          geom_point(aes(color = Counts), size = 1)+
-          geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 4, fontface = "plain")+
-          scale_color_viridis(guide = "colourbar")+
-          labs(color = "Counts")+
-          theme(axis.text = element_blank(),
-                axis.title= element_blank(),
-                axis.ticks = element_blank(),
-                legend.text = element_text(size = 12, face = "plain"),
-                legend.title = element_text(size = 12, face = "plain"),
-                panel.background = element_blank(),
-                axis.line = element_blank(),
-                legend.background=element_blank(),
-                legend.key = element_blank())
-    
-    })
+  plot_umap <- reactive({
+          string <- strsplit(as.character(input$Search), "\n| |\\, |\t")
+          string <- as.data.frame(string)[,1]
+
+         plotdata <- filter(mapping, mapping$gene_id %in% string | mapping$gene_name %in% string)
+
+         umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+           geom_point(data = index, color = "grey", size = 0.1)+
+           theme(axis.text = element_blank(),
+                 axis.title= element_blank(),
+                 axis.ticks = element_blank(),
+                 legend.text = element_text(size = 13, face = "plain"),
+                 legend.title = element_text(size = 14, face = "plain"),
+                 panel.background = element_blank(),
+                 axis.line = element_blank(),
+                 legend.background=element_blank(),
+                 legend.key = element_blank())
+
+           if (input$cluster_id) { # toggle cluster id labels on umap
+             umap <- umap + geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 4, fontface = "bold")
+           }
+           if(input$exp_counts) {
+             umap <- umap + geom_point(aes(color = counts), size = 1)+
+               geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
+               geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
+               scale_color_viridis(guide = "colourbar")+
+               labs(color = "Counts")
+           }
+           if(input$exp_distribution) {
+             umap <- umap + geom_point(aes(color = plotdata$gene_name), alpha = 0.75, size = 1)+
+               scale_color_manual(values = c("#5c8492", "#b25757", "#fae2af", "#f3933b","#ac8287", "#82aca7","#7a7f84", "#fe906a", "#e89690","#cd4c42", "#6f636b", "#82ac92", "#a26f6a", "#184459", "#596c7f","#263946", "#d97f64", "#a0b4ac", "#fbc1c1", "#d76660", "#cb8034"))+
+               labs(color = "Gene")+
+               guides(color = guide_legend(override.aes = list(size=3), ncol = 1))
+             }
+         umap
+          })
+  
+
+     #make umap based on filtered data
+       output$global_umap <- renderPlot({
+         plot_umap()
+       })
 
 
+     
+ 
       
+   
+    # dot plot based on filtered input for umap (reactive)
+    plot_dotplot <- reactive({
+         string <- strsplit(as.character(req(input$Search)), "\n| |\\, |\t")
+         string <- as.data.frame(string)[,1]
+         
+         dotdata <- filter(dot, dot$gene_id %in% string | dot$gene_name %in% string)
       
-    # dot plot based on filtered input (reactive)
-      output$dotplot <- renderPlot({
-        dotdata <- subset(dot, dot$gene_id == req(input$Search) | dot$gene_name == req(input$Search)) 
-      
-        ggplot(data = dotdata, aes(y = id, x = gene_name))+
+         ggplot(data = dotdata, aes(y = id, x = gene_name))+
                  geom_point(aes(size = pct.exp, color = avg.exp.scaled))+
-                 scale_size("Proportion (%)", range = c(-1, 5))+
+                 scale_size("Proportion (%)", range = c(-1, 8))+
                  scale_color_viridis()+
                  labs(x = "Genes", y = "Cluster", size = "Proportion (%)", color = "Avg. Exp.")+
                  facet_grid(cols = vars(ID), rows = vars(gene_name), space = "free", scales = "free", drop = TRUE)+
-                 theme(#text=element_text(family="Helvetica"),
-                       panel.background = element_blank(),
+                 theme(panel.background = element_blank(),
                        axis.line = element_line (colour = "black"),
                        legend.background=element_blank(),
-                       legend.text = element_text(size = 12),
-                       legend.title = element_text(size = 12, vjust = 1),
+                       legend.text = element_text(size = 13),
+                       legend.title = element_text(size = 14, vjust = 1),
                        legend.key = element_blank(),
-                       axis.text.x = ggplot2::element_text(size = 12, angle = 90, vjust = 0.5),
-                       axis.text.y = ggplot2::element_text(size = 12, hjust = 1, face = "italic"),
-                       axis.title.x = ggplot2::element_text(size = 12, vjust = -1),
-                       axis.title.y = ggplot2::element_text(size = 12), 
+                       axis.text.x = ggplot2::element_text(size = 13, angle = 90, vjust = 0.5),
+                       axis.text.y = ggplot2::element_text(size = 13, hjust = 1, face = "italic"),
+                       axis.title.x = ggplot2::element_text(size = 14, vjust = -0.5),
+                       axis.title.y = ggplot2::element_text(size = 14, vjust = 1.4), 
                        strip.text.x = element_text(size = 12),
                        strip.text.y = element_blank(),
                        strip.background = element_blank(),
                        panel.spacing.x = unit(0.5, "lines"), 
-                       #legend.key.width = unit(0.35, "cm"),
-                       #legend.key.height = unit(0.25, "cm"),
-                       #legend.key.size = unit(0.25, "cm"), 
                        legend.position = "right",
-                       panel.grid = element_line(color = "#ededed", size = 0.1))+
+                       panel.grid = element_line(color = "#d4d4d4", size = 0.1))+
                  coord_flip()
-               
       })
       
-    
+      output$dotplot <- renderPlot({
+        plot_dotplot()
+      })
+      
+      
+    #download button for pdf version of umap & dotplot
+      output$save_umap = downloadHandler(
+        filename = function() {"plots.pdf"},
+        content = function(file){
+           pdf(file)
+            print(plot_umap())
+            print(plot_dotplot())
+            tags$iframe(style="height:600px; width:100%", src="plots.pdf")
+           dev.off()
+        })
+
+      
+  ## DEG Analysis ------------------------------------------------------  
+    #combined volcano plot colored by cluster and labeled points
+    # cluster   
+      
+      cluster_deg <- reactive({
+        deg_plot <- ggplot(data = conserved_markers, aes(x = utBM_avg_log2FC, y = -log10(utBM_p_val_adj)))+
+        xlim(-6, 6)+
+        ylim(0, 400)+
+        geom_hline(yintercept = -log(0.05), linetype = "dotted", col = "black", alpha = 0.3)+
+        geom_vline(xintercept = c(-1, 1), linetype = "dotted", col = "black", alpha = 0.3)+
+        labs(x = expression(Log["2"]~'(Fold Change)'), y = expression(-Log["10"]~italic(P)), color = "Cluster")+
+        theme(axis.text.x = ggplot2::element_text(size = 14, face = "plain"),
+              axis.text.y = ggplot2::element_text(size = 14, face = "plain"),
+              axis.title.x = ggplot2::element_text(size = 15, face = "plain"),
+              axis.title.y = ggplot2::element_text(size = 15,face = "plain"), 
+              axis.line = element_line (colour = "black"),
+              panel.background = element_blank(),
+              legend.background=element_blank(),
+              legend.key = element_blank(),
+              legend.position = c(0.15, 0.5),
+              legend.key.height = unit(0.1, "cm"),
+              legend.key.width = unit(0.1, "cm"),
+              plot.margin = margin(0, 0, 0, 0, "cm"))+
+        guides(color = guide_legend(override.aes = list(size=1, alpha = 1), ncol = 1))+
+        NULL
+        
+        if (input$deg_pop1 == "All" & input$deg_pop2 == "All") {
+          deg_plot <- deg_plot +
+            geom_point(data = subset(conserved_markers, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(conserved_markers, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(conserved_markers, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(conserved_markers, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(conserved_markers, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)
+        }
+        if (input$deg_pop1 == "Coelomocyte" & input$deg_pop2 == "All" |input$deg_pop1 == "All" & input$deg_pop2 == "Coelomocyte" ) {
+          data <- subset(conserved_markers, cluster == "6")
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Coelomocytes", size = 4, color = "red")+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Canal-associated" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Canal-associated") {
+          data <- subset(conserved_markers, cluster == "14")
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Canal-associated", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Muscle" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Muscle") {
+          data <- subset(conserved_markers, cluster == "2" | cluster == "19")
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Muscle", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Mesoderm" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Mesoderm") {
+          data <- subset(conserved_markers, cluster == "9" | cluster == "17")
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Mesoderm", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Inner body" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Inner body") {
+          data <- subset(conserved_markers, cluster == "22")
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Inner body", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Secretory" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Secretory") {
+          data <- subset(conserved_markers, cluster == "15")
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Secretory", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Unannotated" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Unannotated") {
+          data <- subset(conserved_markers, cluster == c("1", "3", "4", "5", "7", "8", "10", "16", "20", "21"))
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Unannotated", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+        }
+        if (input$deg_pop1 == "Neuron" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Neuron") {
+          data <- subset(conserved_markers, cluster == c("11", "12", "13", "18", "23", "24", "25", "26", "27"))
+          
+          deg_plot <- deg_plot +
+            geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+            geom_point(data = subset(data, utBM_avg_log2FC <= 1 & utBM_avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_point(data = subset(data, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+            annotate(geom= "text", x = 6,y = 300, label = "Neuron", size = 4,color = "red" )+
+            annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
+          
+        }
+        deg_plot
+      })
+
+      output$vol_cluster <- renderPlot({
+        cluster_deg()
+      })
+
+      
+      
+   # reactive table for cluster DEG   
+  data <- reactive({
+    data <- conserved_markers
+  
+    if (input$deg_pop1 == "All" & input$deg_pop2 == "All") {
+    data
     }
+  if (input$deg_pop1 == "Coelomocyte" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == "6")
+  }
+  if (input$deg_pop1 == "Canal-associated" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == "14")
+  }
+  if (input$deg_pop1 == "Muscle" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == "2" | cluster == "19")
+  }
+  if (input$deg_pop1 == "Mesoderm" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == "9" | cluster == "17")
+  }
+  if (input$deg_pop1 == "Inner body" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == "22")
+  }
+  if (input$deg_pop1 == "Secretory" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == "15")
+  }
+  if (input$deg_pop1 == "Unannotated" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == c("1", "3", "4", "5", "7", "8", "10", "16", "20", "21"))
+  }
+  if (input$deg_pop1 == "Neuron" & input$deg_pop2 == "All") {
+    data <- subset(conserved_markers, cluster == c("11", "12", "13", "18", "23", "24", "25", "26", "27"))
+  }
+     data
+  })
+      
+      
+      
+  #table output for DEG analysis by cluster
+      output$table_cluster = DT::renderDataTable({data()})     
+      
+  # treatment deg    
+      treatment_deg <- reactive({
+        deg_plot <- ggplot(data = response, aes(x = avg_log2FC, y = -log10(p_val_adj)))+
+          geom_point(data = subset(response, avg_log2FC <= -1 & -log10(p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
+          geom_point(data = subset(response, avg_log2FC >= 1 & -log10(p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
+          geom_point(data = subset(response, avg_log2FC <= 1 & avg_log2FC > -0.6),color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+          geom_point(data = subset(response, avg_log2FC >= -1 & -log10(p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+          geom_point(data = subset(response, -log10(p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
+          geom_text_repel(data = subset(response, avg_log2FC >= 1 & -log10(p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
+          xlim(-3, 3)+
+          ylim(0, 100)+
+          geom_hline(yintercept = -log(0.05), linetype = "dotted", col = "black", alpha = 0.3)+
+          geom_vline(xintercept = c(-1, 1), linetype = "dotted", col = "black", alpha = 0.3)+
+          annotate(geom= "text", x = 2.8,y = 100, label = "IVM", size = 3.5)+
+          annotate(geom= "text", x = -2.5,y = 100, label = "Untreated", size = 3.5)+
+          labs(x = expression(Log["2"]~'(Fold Change)'), y = expression(-Log["10"]~italic(P)), color = "Cluster")+
+          theme(axis.text.x = ggplot2::element_text(size = 14, face = "plain"),
+                axis.text.y = ggplot2::element_text(size = 14, face = "plain"),
+                axis.title.x = ggplot2::element_text(size = 15, face = "plain"),
+                axis.title.y = ggplot2::element_text(size = 15,face = "plain"), 
+                axis.line = element_line (colour = "black"),
+                strip.background = element_blank(),
+                legend.title = element_text(size = 14),
+                legend.text = element_markdown(size = 13,face = "plain"),
+                legend.background=element_blank(),
+                legend.key = element_blank(),
+                legend.position = c(0.15, 0.5),
+                legend.key.height = unit(0.1, "cm"),
+                legend.key.width = unit(0.1, "cm"),
+                panel.background = element_blank(),
+                plot.margin = margin(0, 0, 0, 0, "cm"))+
+          guides(color = guide_legend(override.aes = list(size=1, alpha = 1), ncol = 1))+
+          NULL
+        
+        if (input$vol_facet) { # toggle faceted volcano plot
+          deg_plot <- deg_plot + 
+                        facet_wrap(~ID, nrow = 4, ncol = 2)+
+                        theme(strip.text = element_text(size = 12))
+        } 
+        deg_plot
+      })
+      
+    output$vol_treatment<- renderPlot({
+       treatment_deg()
+    })
     
+    #table output for DEG analysis for treated and untreated
+    output$table_treatment = DT::renderDataTable(response)
+
     
+ ## Downloads ------------------------------------------------------  
+
+    # UMAP data
+    output$umap_download <- downloadHandler(
+      filename = function() {
+        paste("umap_data",".csv", sep = "")
+      },
+      content=function(file) {
+        write.csv(mapping, file)
+      }
+    )
+    
+    # dotplot data
+    output$dot_download <- downloadHandler(
+      filename = function() {
+        paste("dotplot_data",".csv", sep = "")
+      },
+      content=function(file) {
+        write.csv(dot, file)
+      }
+    )
+    
+    # DEG cluster analysis data
+    output$deg_cluster_download <- downloadHandler(
+      filename = function() {
+        paste("deg_bycluster_data",".csv", sep = "")
+      },
+      content=function(file) {
+        write.csv(conserved_markers, file)
+      }
+    )
+    
+    # DEG untreated vs IVM treated data
+    output$deg_treatment_download <- downloadHandler(
+      filename = function() {
+        paste("deg_bytreatment_data",".csv", sep = "")
+      },
+      content=function(file) {
+        write.csv(response, file)
+      }
+    )
+    
+    # Seurat data download 
+    output$seurat <- downloadHandler(
+      filename = function() {
+        paste("Bmalayi_mf_sc",".h5Seurat")
+      },
+      content=function(file) {
+        SeuratDisk::SaveH5Seurat(seurat, file)
+      }
+    )
+    
+    # AnnData data download 
+    output$seurat <- downloadHandler(
+      filename = function() {
+        paste("Bmalayi_mf_sc",".h5ad")
+      },
+      content=function(file) {
+        write_h5ad(anndata, file)
+      }
+    )
+    
+}
+
+
+
+
 
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
-
-
-
-
-
-
-
-
-
-
-
-#scratchpad
