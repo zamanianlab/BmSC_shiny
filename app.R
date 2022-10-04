@@ -1,4 +1,4 @@
-# Shiny application for the exploration of the Brugia malayi microfilariae single cell atlas
+# Shiny application for the exploration of the Brugia malayi microfilariae single-cell atlas
 # Henthorn et al. 2022
 # chenthorn@wisc.edu
 #
@@ -12,15 +12,16 @@
 # install.packages("ggtext")
 # install.packages("ggrepel")
 # install.packages("viridis")
-# install.packages("here")
+# install.packages("googledrive")
 
-# BiocManager::install('OmnipathR') #for record download from zenodo
 
 # shiny app libraries
 library(shiny)
 library(shinythemes)
 library(shinydashboard)
 library(shinyWidgets)
+library(shinyFeedback)
+
 
 #plotting libraries
 library(dplyr)
@@ -30,14 +31,24 @@ library(ggtext)
 library(viridis)
 library(ggrepel)
 
-#organization
-#library(here)
-
-# record download from zenodo
-library(OmnipathR)
+#data download
+#library(googledrive)
 
 
-setwd("~/GitHub/BmSC_shiny")
+
+
+# *****Toggle the Google Drive options below for downloading the gene expression matrix for running the app locally******
+
+#connecting to Google Drive
+# options(
+#    # whenever there is one account token found, use the cached token
+#    gargle_oauth_email = TRUE,
+#    # specify auth tokens should be stored in a hidden directory ".secrets"
+#    gargle_oauth_cache = "BmSC_shiny/.secrets"
+#  )
+# 
+# drive_download("expression_matrix.rda")
+
 
 
 # Load data
@@ -45,34 +56,20 @@ load(file = "conserved_markers.rda")
 load(file = "dot.rda")
 load(file = "index.rda")
 load(file = "response.rda")
-#load(file = "~/Desktop/expression_matrix.rda")
-
-
-mapping <- zenodo_download(
-  zenodo_record = 7110316,
-  zenodo_fname = 'Bma_mf_sc_data.zip',
-  path = ('Bma_mf_sc_data/gene_expression_matrix.csv'))
-
-seurat <- zenodo_download(
-  zenodo_record = 7110316,
-  zenodo_fname = 'Bma_mf_sc_data.zip',
-  path = ('Bma_mf_sc_data/Bmalayi_mf_sc.h5Seurat'))
-
-anndata <- zenodo_download(
-  zenodo_record = 7110316,
-  zenodo_fname = 'Bma_mf_sc_data.zip',
-  path = ('Bma_mf_sc_data/Bmalayi_mf_sc.h5ad'))
+load(file = "expression_matrix.rda")
 
 
 # Load cluster annotations csv
-clusters <- read.csv("~/GitHub/BmSC_shiny/fig2a_newlabels.csv")
+clusters <- read.csv("fig2a_newlabels.csv")
 
 #-----------------------------------------------------------------------------
 # Shiny Application
 
 # Define UI for application
 ui <- fluidPage(theme = shinytheme("cerulean"),
-                navbarPage(HTML("<i> B. malayi </i> SC"),
+                title = "B. malayi SC",
+                #navbarPage(HTML("<i> B. malayi </i> SC")
+                navbarPage(HTML(paste(em("B. malayi"), "SC")),
                            
   # About Page            
       tabPanel("About",
@@ -83,15 +80,15 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                         div(p(h4(HTML(paste0(a(href= "https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1", "Resolving the origins of secretory products and anthelmintic responses in a human parasitic nematode at single-cell resolution"), "."))))),
                         #p(tags$a(href="https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1","bioRxiv")),
                         #p(tags$a("GitHub", href="https://github.com/zamanianlab/Bmsinglecell-ms")),
-                        div(p(HTML(paste0("This data was captured using the 10x Genomics platform and analyzed using a variety of single-cell focused R packages including Seurat. All data can be downloaded from the ‘Downloads' tab for personal analysis. A local copy of the app can be installed from the", a(href="https://github.com/chenthorn/BmSC_shiny", " GitHub repo "), "if exploration of the data is inhibited by heavy traffic on the server.")))),
-                        div(p(HTML(paste0("Please report bugs and other app issues to the GitHub repo", a(href="https://github.com/chenthorn/BmSC_shiny/issues", " Issues board"), ".")))))),
+                        div(p(HTML(paste0("This data was captured using the 10x Genomics platform and analyzed using a variety of single-cell focused R packages including Seurat. All data can be downloaded from the ‘Downloads' tab for personal analysis. A local copy of the app can be installed from the", a(href="https://github.com/zamanianlab/BmSC_shiny", " GitHub repo "), "if exploration of the data is inhibited by heavy traffic on the server.")))),
+                        div(p(HTML(paste0("Please report bugs and other app issues to the GitHub repo", a(href="https://github.com/zamanianlab/BmSC_shiny/issues", " Issues board"), ".")))))),
                fluidRow(
                 column(2),
                 column(4, imageOutput("umap_image")),
                 column(6)),
                fluidRow(                 
                  column(3,
-                        p(h6("Last updated 09/28/2022"))),
+                        p(h6("Last updated 10/04/2022"))),
                  column(9))),
            
   
@@ -103,21 +100,28 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
             sidebarPanel(
               textAreaInput(inputId = "Search", label = NULL, placeholder = "Bma-myo-3", width = "150px", height = "100px"),
                   p(""),
-                  p("Plot Options:"),
-                  checkboxInput("exp_counts", label = "Counts", value = FALSE),
-                  checkboxInput("exp_distribution", label = "Distribution", value = FALSE),
+                  #p("Plot Options:"),
+                  #checkboxInput("exp_counts", label = "Total Expression", value = FALSE),
+                  #checkboxInput("exp_distribution", label = "Distribution", value = FALSE),
+                  selectInput(inputId = "umap_opts", label = "Plot Options:", choices = c("Total Expression", "Distribution", "Faceted Expression")),
                   p("Label Options:"),
                   checkboxInput("cluster_id", label = "Cluster ID", value = FALSE),
+                  checkboxInput("cell_type", label = "Cell Type", value = FALSE),
+              
                   width = 3),
-          mainPanel(#downloadButton("save_umap", label = "", icon = shiny::icon("arrow-down"), style="float:right"),
+          mainPanel(
                   plotOutput(outputId = "global_umap", hover = hoverOpts("plot_hover", delayType = "debounce")),
                   #bsTooltip("tooltip", title = "Cluster annotation:", placement = "left", trigger = "hover"),
                   uiOutput("hover_info", style = "pointer-events: none"),
                   width = 9)),
           p(""),
           mainPanel(plotOutput(outputId = "dotplot"),
-                    p(""),
-                    p("MS=Muscle, MD=Mesoderm, C=Coelomocyte, S=Secretory, CA=Canal-associated, IB=Inner body"), width = 12)),
+                    width = 12),
+          fluidRow(
+            column(3),
+            column(8,
+                   p("MS=Muscle, MD=Mesoderm, C=Coelomocyte, S=Secretory, CA=Canal-associated, IB=Inner body")),
+            column(2))),
 
 
   
@@ -128,10 +132,11 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
               tabsetPanel(type = "tabs",
                   tabPanel("Cluster-based",
                               p(""),
-                              p("Differental gene expression was conducted using the Seurat FindConservedMarkers() function on the integrated data. The DEGs for the untreated control are shown below. Choose from the dropdown lists to compare cluster DEGs."),
+                              p("Differental gene expression was conducted using the Seurat FindConservedMarkers() function on the integrated data. The DEGs for the untreated control are shown below. Choose a cell type from the dropdown list to explore cluster DEGs."),
                               splitLayout(
-                              selectInput(inputId = "deg_pop1", label = "Group 1", choices = c("All","Canal-associated", "Coelomocyte", "Inner body", "Mesoderm", "Muscle", "Neuron", "Secretory", "Unannotated")),
-                              selectInput(inputId = "deg_pop2", label = "Group 2", choices = c("All","Canal-associated", "Coelomocyte", "Inner body", "Mesoderm", "Muscle", "Neuron", "Secretory", "Unannotated"))),
+                              selectInput(inputId = "deg_pop1", label = "Cell Type", choices = c("All","Canal-associated", "Coelomocyte", "Inner body", "Mesoderm", "Muscle", "Neuron", "Secretory", "Unannotated"))),
+                              #p("All")),
+                              #selectInput(inputId = "deg_pop2", label = "Group 2", choices = c("All"))),
                               plotOutput(outputId = "vol_cluster"),
                               DT::dataTableOutput("table_cluster")),
                   tabPanel("Treatment",
@@ -145,8 +150,9 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
       
     # Downloads
       tabPanel("Downloads",
-          mainPanel(
-            p(h4("All datasets used in this app can be downloaded with the links below:")),
+          fluidRow(
+            column(12,
+            div(p(HTML(paste0("All data used in this app can be downloaded from the links below. The Seurat or AnnData object containing the complete dataset associated with the preprint can be downloaded from", a(href="https://zenodo.org/record/7110316#.YzeVAezMI6E", " Zenodo"), ".")))),
             tags$ul(
               p(tags$li("Gene expression matrix with annotation",
               downloadLink(outputId = "umap_download", label = "Download"))),
@@ -155,11 +161,7 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
               p(tags$li("Differentially expressed genes by cluster",
               downloadLink(outputId = "deg_cluster_download", label = "Download"))),
               p(tags$li("Differentially expressed genes by treatment",
-              downloadLink(outputId = "deg_treatment_download", label = "Download"))),
-              p(tags$li("Integrated datasets of treated and untreated cell populations",
-              downloadLink(outputId = "seurat", label = "Seurat"),
-              downloadLink(outputId = "anndata", label = "AnnData")))),
-            width = 12))
+              downloadLink(outputId = "deg_treatment_download", label = "Download")))))))
 
 ))
 
@@ -204,19 +206,145 @@ server <- function(input, output) {
            if (input$cluster_id) { # toggle cluster id labels on umap
              umap <- umap + geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 4, fontface = "bold")
            }
-           if(input$exp_counts) {
+          if(input$cell_type) {
+           umap <- umap + geom_text(data = clusters, aes(x = x2, y = y2, label = celltype), size = 3, fontface = "bold")
+         }
+        
+         
+           if(input$umap_opts == "Total Expression") {
              umap <- umap + geom_point(aes(color = counts), size = 1)+
                geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
                geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
                scale_color_viridis(guide = "colourbar")+
                labs(color = "Counts")
            }
-           if(input$exp_distribution) {
+           if(input$umap_opts == "Distribution") {
              umap <- umap + geom_point(aes(color = plotdata$gene_name), alpha = 0.75, size = 1)+
                scale_color_manual(values = c("#5c8492", "#b25757", "#fae2af", "#f3933b","#ac8287", "#82aca7","#7a7f84", "#fe906a", "#e89690","#cd4c42", "#6f636b", "#82ac92", "#a26f6a", "#184459", "#596c7f","#263946", "#d97f64", "#a0b4ac", "#fbc1c1", "#d76660", "#cb8034"))+
                labs(color = "Gene")+
                guides(color = guide_legend(override.aes = list(size=3), ncol = 1))
-             }
+           }
+          if(input$umap_opts == "Faceted Expression") {
+            umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+              geom_point(data = index, color = "grey", size = 0.1)+
+              geom_point(aes(color = counts), size = 1)+
+              geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
+              geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
+              scale_color_viridis(guide = "colourbar")+
+              labs(color = "Counts")+ 
+              facet_wrap(~gene_name, ncol = 3)+
+              #facet_grid(cols = vars(gene_name))+
+              theme(axis.text = element_blank(),
+                    axis.title= element_blank(),
+                    axis.ticks = element_blank(),
+                    legend.text = element_text(size = 12, face = "plain"),
+                    legend.title = element_text(size = 13, face = "plain"),
+                    panel.background = element_blank(),
+                    axis.line = element_blank(),
+                    legend.background=element_blank(),
+                    strip.background = element_blank(),
+                    strip.text = element_text(size = 12),
+                    legend.key = element_blank()) }
+            
+            if(input$umap_opts == "Faceted Expression" & input$cluster_id) {
+              umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+                geom_point(data = index, color = "grey", size = 0.1)+
+                geom_point(aes(color = counts), size = 1)+
+                geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
+                geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
+                geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 4, fontface = "bold")+
+                scale_color_viridis(guide = "colourbar")+
+                labs(color = "Counts")+ 
+                facet_wrap(~gene_name, ncol = 3)+
+                #facet_grid(cols = vars(gene_name))+
+                theme(axis.text = element_blank(),
+                      axis.title= element_blank(),
+                      axis.ticks = element_blank(),
+                      legend.text = element_text(size = 12, face = "plain"),
+                      legend.title = element_text(size = 13, face = "plain"),
+                      panel.background = element_blank(),
+                      axis.line = element_blank(),
+                      legend.background=element_blank(),
+                      strip.background = element_blank(),
+                      strip.text = element_text(size = 12),
+                      legend.key = element_blank())
+            }
+            
+            if(input$umap_opts == "Faceted Expression" & input$cell_type) {
+              umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+                geom_point(data = index, color = "grey", size = 0.1)+
+                geom_point(aes(color = counts), size = 1)+
+                geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
+                geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
+                geom_text(data = clusters, aes(x = x2, y = y2, label = celltype), size = 3, fontface = "bold")+
+                scale_color_viridis(guide = "colourbar")+
+                labs(color = "Counts")+ 
+                facet_wrap(~gene_name, ncol = 3)+
+                #facet_grid(cols = vars(gene_name))+
+                theme(axis.text = element_blank(),
+                      axis.title= element_blank(),
+                      axis.ticks = element_blank(),
+                      legend.text = element_text(size = 12, face = "plain"),
+                      legend.title = element_text(size = 13, face = "plain"),
+                      panel.background = element_blank(),
+                      axis.line = element_blank(),
+                      legend.background=element_blank(),
+                      strip.background = element_blank(),
+                      strip.text = element_text(size = 12),
+                      legend.key = element_blank())}
+              
+            
+         if(input$cell_type& input$cluster_id) {
+           umap <- umap + geom_text(data = clusters, aes(x = x2, y = y2, label = celltype), size = 3, fontface = "bold")+
+                          geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 4, fontface = "bold")}
+           
+         # if(input$umap_opts == "Faceted Expression" & input$cluster_id) {
+         #   umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+         #     geom_point(data = index, color = "grey", size = 0.1)+
+         #     geom_point(aes(color = counts), size = 1)+
+         #     geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
+         #     geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
+         #     geom_text(data = clusters, aes(x = x, y = y, label = str_wrap(text, width = 8)), size = 2.5, fontface = "bold")+
+         #     scale_color_viridis(guide = "colourbar")+
+         #     labs(color = "Counts")+ 
+         #     facet_wrap(~gene_name, ncol = 3)+
+         #     #facet_grid(cols = vars(gene_name))+
+         #     theme(axis.text = element_blank(),
+         #           axis.title= element_blank(),
+         #           axis.ticks = element_blank(),
+         #           legend.text = element_text(size = 12, face = "plain"),
+         #           legend.title = element_text(size = 13, face = "plain"),
+         #           panel.background = element_blank(),
+         #           axis.line = element_blank(),
+         #           legend.background=element_blank(),
+         #           strip.background = element_blank(),
+         #           strip.text = element_text(size = 12),
+         #           legend.key = element_blank())
+         # }
+         # 
+         # if(input$umap_opts == "Faceted Expression" &  input$cell_type) {
+         #   umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
+         #     geom_point(data = index, color = "grey", size = 0.1)+
+         #     geom_point(aes(color = counts), size = 1)+
+         #     geom_point(data = subset(plotdata, counts >4), aes(color = counts), size = 1)+
+         #     geom_point(data = subset(plotdata, counts >5), aes(color = counts), size = 1)+
+         #     geom_text(data = clusters, aes(x = x2, y = y2, label = celltype), size = 3, fontface = "bold")+
+         #     scale_color_viridis(guide = "colourbar")+
+         #     labs(color = "Counts")+ 
+         #     facet_wrap(~gene_name, ncol = 3)+
+         #     #facet_grid(cols = vars(gene_name))+
+         #     theme(axis.text = element_blank(),
+         #           axis.title= element_blank(),
+         #           axis.ticks = element_blank(),
+         #           legend.text = element_text(size = 12, face = "plain"),
+         #           legend.title = element_text(size = 13, face = "plain"),
+         #           panel.background = element_blank(),
+         #           axis.line = element_blank(),
+         #           legend.background=element_blank(),
+         #           strip.background = element_blank(),
+         #           strip.text = element_text(size = 12),
+         #           legend.key = element_blank())
+         # }
          umap
           })
   
@@ -261,6 +389,7 @@ server <- function(input, output) {
                        legend.position = "right",
                        panel.grid = element_line(color = "#d4d4d4", size = 0.1))+
                  coord_flip()
+         
       })
       
       output$dotplot <- renderPlot({
@@ -294,7 +423,7 @@ server <- function(input, output) {
         theme(axis.text.x = ggplot2::element_text(size = 14, face = "plain"),
               axis.text.y = ggplot2::element_text(size = 14, face = "plain"),
               axis.title.x = ggplot2::element_text(size = 15, face = "plain"),
-              axis.title.y = ggplot2::element_text(size = 15,face = "plain"), 
+              axis.title.y = ggplot2::element_text(size = 15,face = "plain"),
               axis.line = element_line (colour = "black"),
               panel.background = element_blank(),
               legend.background=element_blank(),
@@ -305,8 +434,8 @@ server <- function(input, output) {
               plot.margin = margin(0, 0, 0, 0, "cm"))+
         guides(color = guide_legend(override.aes = list(size=1, alpha = 1), ncol = 1))+
         NULL
-        
-        if (input$deg_pop1 == "All" & input$deg_pop2 == "All") {
+
+        if (input$deg_pop1 == "All") {
           deg_plot <- deg_plot +
             geom_point(data = subset(conserved_markers, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(conserved_markers, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -314,9 +443,9 @@ server <- function(input, output) {
             geom_point(data = subset(conserved_markers, utBM_avg_log2FC >= -1 & -log10(utBM_p_val_adj) <= -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)+
             geom_point(data = subset(conserved_markers, -log10(utBM_p_val_adj) < -log(0.05)), color = "light grey", alpha = 0.5, size = 1.25, show.legend = FALSE)
         }
-        if (input$deg_pop1 == "Coelomocyte" & input$deg_pop2 == "All" |input$deg_pop1 == "All" & input$deg_pop2 == "Coelomocyte" ) {
+        if (input$deg_pop1 == "Coelomocyte") {
           data <- subset(conserved_markers, cluster == "6")
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -328,9 +457,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Coelomocytes", size = 4, color = "red")+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Canal-associated" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Canal-associated") {
+        if (input$deg_pop1 == "Canal-associated") {
           data <- subset(conserved_markers, cluster == "14")
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -342,9 +471,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Canal-associated", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Muscle" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Muscle") {
+        if (input$deg_pop1 == "Muscle") {
           data <- subset(conserved_markers, cluster == "2" | cluster == "19")
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -356,9 +485,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Muscle", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Mesoderm" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Mesoderm") {
+        if (input$deg_pop1 == "Mesoderm") {
           data <- subset(conserved_markers, cluster == "9" | cluster == "17")
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -370,9 +499,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Mesoderm", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Inner body" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Inner body") {
+        if (input$deg_pop1 == "Inner body") {
           data <- subset(conserved_markers, cluster == "22")
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -384,9 +513,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Inner body", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Secretory" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Secretory") {
+        if (input$deg_pop1 == "Secretory") {
           data <- subset(conserved_markers, cluster == "15")
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -398,9 +527,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Secretory", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Unannotated" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Unannotated") {
+        if (input$deg_pop1 == "Unannotated") {
           data <- subset(conserved_markers, cluster == c("1", "3", "4", "5", "7", "8", "10", "16", "20", "21"))
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -412,9 +541,9 @@ server <- function(input, output) {
             annotate(geom= "text", x = 6,y = 300, label = "Unannotated", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
         }
-        if (input$deg_pop1 == "Neuron" & input$deg_pop2 == "All" | input$deg_pop1 == "All" & input$deg_pop2 == "Neuron") {
+        if (input$deg_pop1 == "Neuron") {
           data <- subset(conserved_markers, cluster == c("11", "12", "13", "18", "23", "24", "25", "26", "27"))
-          
+
           deg_plot <- deg_plot +
             geom_point(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b", show.legend = TRUE, size = 1.25)+
             geom_point(data = subset(data, utBM_avg_log2FC >= 1 & -log10(utBM_p_val_adj) >= -log(0.05)), color = "#f3933b",  show.legend = TRUE, size = 1.25)+
@@ -425,7 +554,7 @@ server <- function(input, output) {
             geom_text_repel(data = subset(data, utBM_avg_log2FC <= -1 & -log10(utBM_p_val_adj) >= -log(0.05)), aes(label = gene_name, fontface = 3),size = 4, nudge_y =0, nudge_x = 0, color = "black", max.iter = 100000, max.overlaps = 12, force  = 3)+
             annotate(geom= "text", x = 6,y = 300, label = "Neuron", size = 4,color = "red" )+
             annotate(geom= "text", x = -6,y = 300, label = "All", size = 4, color = "red")
-          
+
         }
         deg_plot
       })
@@ -440,31 +569,31 @@ server <- function(input, output) {
   data <- reactive({
     data <- conserved_markers
   
-    if (input$deg_pop1 == "All" & input$deg_pop2 == "All") {
+    if (input$deg_pop1 == "All") {
     data
     }
-  if (input$deg_pop1 == "Coelomocyte" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Coelomocyte") {
     data <- subset(conserved_markers, cluster == "6")
   }
-  if (input$deg_pop1 == "Canal-associated" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Canal-associated") {
     data <- subset(conserved_markers, cluster == "14")
   }
-  if (input$deg_pop1 == "Muscle" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Muscle") {
     data <- subset(conserved_markers, cluster == "2" | cluster == "19")
   }
-  if (input$deg_pop1 == "Mesoderm" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Mesoderm") {
     data <- subset(conserved_markers, cluster == "9" | cluster == "17")
   }
-  if (input$deg_pop1 == "Inner body" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Inner body") {
     data <- subset(conserved_markers, cluster == "22")
   }
-  if (input$deg_pop1 == "Secretory" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Secretory") {
     data <- subset(conserved_markers, cluster == "15")
   }
-  if (input$deg_pop1 == "Unannotated" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Unannotated") {
     data <- subset(conserved_markers, cluster == c("1", "3", "4", "5", "7", "8", "10", "16", "20", "21"))
   }
-  if (input$deg_pop1 == "Neuron" & input$deg_pop2 == "All") {
+  if (input$deg_pop1 == "Neuron") {
     data <- subset(conserved_markers, cluster == c("11", "12", "13", "18", "23", "24", "25", "26", "27"))
   }
      data
@@ -567,25 +696,7 @@ server <- function(input, output) {
       }
     )
     
-    # Seurat data download 
-    output$seurat <- downloadHandler(
-      filename = function() {
-        paste("Bmalayi_mf_sc",".h5Seurat")
-      },
-      content=function(file) {
-        SeuratDisk::SaveH5Seurat(seurat, file)
-      }
-    )
-    
-    # AnnData data download 
-    output$seurat <- downloadHandler(
-      filename = function() {
-        paste("Bmalayi_mf_sc",".h5ad")
-      },
-      content=function(file) {
-        write_h5ad(anndata, file)
-      }
-    )
+
     
 }
 
