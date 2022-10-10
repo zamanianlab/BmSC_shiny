@@ -1,8 +1,7 @@
-# Shiny application for the exploration of the Brugia malayi microfilariae single-cell atlas
-# Henthorn et al. 2022
-# chenthorn@wisc.edu
-#
-#
+# Shiny application for the exploration of the Brugia malayi microfilariae single-cell atlas associated with the preprint "Resolving the origins of secretory products and anthelmintic responses in a human parasitic nematode at single-cell resolution" (Henthorn et al. 2022).
+
+
+# install packages
 # install.packages("shiny")
 # install.packages("shinythemes")
 # install.packages("shinydashboard")
@@ -12,16 +11,13 @@
 # install.packages("ggtext")
 # install.packages("ggrepel")
 # install.packages("viridis")
-# install.packages("googledrive")
-
+# install.packages("here")
 
 # shiny app libraries
 library(shiny)
 library(shinythemes)
 library(shinydashboard)
 library(shinyWidgets)
-library(shinyFeedback)
-
 
 #plotting libraries
 library(dplyr)
@@ -31,36 +27,25 @@ library(ggtext)
 library(viridis)
 library(ggrepel)
 
-#data download
-#library(googledrive)
+library(here)
 
 
 
-
-# *****Toggle the Google Drive options below for downloading the gene expression matrix for running the app locally******
-
-#connecting to Google Drive
-# options(
-#    # whenever there is one account token found, use the cached token
-#    gargle_oauth_email = TRUE,
-#    # specify auth tokens should be stored in a hidden directory ".secrets"
-#    gargle_oauth_cache = "BmSC_shiny/.secrets"
-#  )
-# 
-# drive_download("expression_matrix.rda")
-
+# The gene_expression_matrix.csv must be downloaded from Zenodo prior to running the shiny app locally.
+# The matrix can be downloaded from this Zenodo data archive link --> https://zenodo.org/record/7110316#.Y0RcQuzMI6F
 
 
 # Load data
-load(file = "conserved_markers.rda")
-load(file = "dot.rda")
-load(file = "index.rda")
-load(file = "response.rda")
-load(file = "expression_matrix.rda")
+load(file = here("conserved_markers.rda"))
+load(file = here("dot.rda"))
+load(file = here("index.rda"))
+load(file = here("response.rda"))
+mapping <- read.csv(here("gene_expression_matrix.csv")) 
 
 
 # Load cluster annotations csv
 clusters <- read.csv("fig2a_newlabels.csv")
+
 
 #-----------------------------------------------------------------------------
 # Shiny Application
@@ -88,7 +73,7 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                 column(6)),
                fluidRow(                 
                  column(3,
-                        p(h6("Last updated 10/04/2022"))),
+                        p(h6("Last updated 10/10/2022"))),
                  column(9))),
            
   
@@ -699,8 +684,6 @@ server <- function(input, output) {
 
     
 }
-
-
 
 
 
