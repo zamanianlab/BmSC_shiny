@@ -52,19 +52,24 @@ clusters <- read.csv("fig2a_newlabels.csv")
 
 # Define UI for application
 ui <- fluidPage(theme = shinytheme("cerulean"),
+                tags$head(
+                  tags$style(HTML("
+                    .shiny-output-error-validation {
+                    color: red;
+                    font-weight: bold;
+                     }
+                   "))),
                 title = "B. malayi SC",
                 #navbarPage(HTML("<i> B. malayi </i> SC")
                 navbarPage(HTML(paste(em("B. malayi"), "SC")),
-                           
+
   # About Page            
       tabPanel("About",
                  fluidRow(
                  column(12, 
                         p(h1("Welcome")),
                         p(HTML("This app serves as a tool to easily explore the <i> Brugia malayi </i> microfilariae single-cell transcriptomic atlas presented in:")), 
-                        div(p(h4(HTML(paste0(a(href= "https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1", "Resolving the origins of secretory products and anthelmintic responses in a human parasitic nematode at single-cell resolution"), "."))))),
-                        #p(tags$a(href="https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1","bioRxiv")),
-                        #p(tags$a("GitHub", href="https://github.com/zamanianlab/Bmsinglecell-ms")),
+                        div(p(h4(HTML(paste0(a(href= "https://elifesciences.org/articles/83100", "Resolving the origins of secretory products and anthelmintic responses in a human parasitic nematode at single-cell resolution"), "."))))),
                         div(p(HTML(paste0("This data was captured using the 10x Genomics platform and analyzed using a variety of single-cell focused R packages including Seurat. All data can be downloaded from the ‘Downloads' tab for personal analysis. A local copy of the app can be installed from the", a(href="https://github.com/zamanianlab/BmSC_shiny", " GitHub repo "), "if exploration of the data is inhibited by heavy traffic on the server.")))),
                         div(p(HTML(paste0("Please report bugs and other app issues to the GitHub repo", a(href="https://github.com/zamanianlab/BmSC_shiny/issues", " Issues board"), ".")))))),
                fluidRow(
@@ -73,7 +78,7 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                 column(6)),
                fluidRow(                 
                  column(3,
-                        p(h6("Last updated 10/10/2022"))),
+                        p(h6("Last updated 08/06/2024"))),
                  column(9))),
            
   
@@ -84,6 +89,7 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
           sidebarLayout(
             sidebarPanel(
               textAreaInput(inputId = "Search", label = NULL, placeholder = "Bma-myo-3", width = "150px", height = "100px"),
+              actionButton("goButton", "Search", class = "btn-success"),
                   p(""),
                   #p("Plot Options:"),
                   #checkboxInput("exp_counts", label = "Total Expression", value = FALSE),
@@ -92,7 +98,6 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
                   p("Label Options:"),
                   checkboxInput("cluster_id", label = "Cluster ID", value = FALSE),
                   checkboxInput("cell_type", label = "Cell Type", value = FALSE),
-              
                   width = 3),
           mainPanel(
                   plotOutput(outputId = "global_umap", hover = hoverOpts("plot_hover", delayType = "debounce")),
@@ -146,9 +151,8 @@ ui <- fluidPage(theme = shinytheme("cerulean"),
               p(tags$li("Differentially expressed genes by cluster",
               downloadLink(outputId = "deg_cluster_download", label = "Download"))),
               p(tags$li("Differentially expressed genes by treatment",
-              downloadLink(outputId = "deg_treatment_download", label = "Download")))))))
+              downloadLink(outputId = "deg_treatment_download", label = "Download")))))))))
 
-))
 
 
 
@@ -171,11 +175,13 @@ server <- function(input, output) {
 ## UMAP Exploration ------------------------------------------------------  
      
   plot_umap <- reactive({
+           req(input$goButton)
+    
           string <- strsplit(as.character(input$Search), "\n| |\\, |\t")
           string <- as.data.frame(string)[,1]
 
          plotdata <- filter(mapping, mapping$gene_id %in% string | mapping$gene_name %in% string)
-
+         
          umap <- ggplot(data = plotdata, aes(x = UMAP_1, y = UMAP_2))+
            geom_point(data = index, color = "grey", size = 0.1)+
            theme(axis.text = element_blank(),
@@ -336,6 +342,7 @@ server <- function(input, output) {
 
      #make umap based on filtered data
        output$global_umap <- renderPlot({
+         req(input$goButton)
          plot_umap()
        })
 
@@ -345,41 +352,52 @@ server <- function(input, output) {
       
    
     # dot plot based on filtered input for umap (reactive)
-    plot_dotplot <- reactive({
+
+        plot_dotplot <- reactive({
+          req(input$goButton)
+          
          string <- strsplit(as.character(req(input$Search)), "\n| |\\, |\t")
          string <- as.data.frame(string)[,1]
          
          dotdata <- filter(dot, dot$gene_id %in% string | dot$gene_name %in% string)
-      
-         ggplot(data = dotdata, aes(y = id, x = gene_name))+
-                 geom_point(aes(size = pct.exp, color = avg.exp.scaled))+
-                 scale_size("Proportion (%)", range = c(-1, 8))+
-                 scale_color_viridis()+
-                 labs(x = "Genes", y = "Cluster", size = "Proportion (%)", color = "Avg. Exp.")+
-                 facet_grid(cols = vars(ID), rows = vars(gene_name), space = "free", scales = "free", drop = TRUE)+
-                 theme(panel.background = element_blank(),
-                       axis.line = element_line (colour = "black"),
-                       legend.background=element_blank(),
-                       legend.text = element_text(size = 13),
-                       legend.title = element_text(size = 14, vjust = 1),
-                       legend.key = element_blank(),
-                       axis.text.x = ggplot2::element_text(size = 13, angle = 90, vjust = 0.5),
-                       axis.text.y = ggplot2::element_text(size = 13, hjust = 1, face = "italic"),
-                       axis.title.x = ggplot2::element_text(size = 14, vjust = -0.5),
-                       axis.title.y = ggplot2::element_text(size = 14, vjust = 1.4), 
-                       strip.text.x = element_text(size = 12),
-                       strip.text.y = element_blank(),
-                       strip.background = element_blank(),
-                       panel.spacing.x = unit(0.5, "lines"), 
-                       legend.position = "right",
-                       panel.grid = element_line(color = "#d4d4d4", size = 0.1))+
-                 coord_flip()
          
-      })
-      
+         if(length(dotdata$gene_id) == 0) {
+           showNotification("Gene(s) not found in data.", type = "error", duration = NULL)
+           return()
+         }
+         
+         ggplot(data = dotdata, aes(y = id, x = gene_name))+
+           geom_point(aes(size = pct.exp, color = avg.exp.scaled))+
+           scale_size("Proportion (%)", range = c(-1, 8))+
+           scale_color_viridis()+
+           labs(x = "Genes", y = "Cluster", size = "Proportion (%)", color = "Avg. Exp.")+
+           facet_grid(cols = vars(ID), rows = vars(gene_name), space = "free", scales = "free", drop = TRUE)+
+           theme(panel.background = element_blank(),
+                 axis.line = element_line (colour = "black"),
+                 legend.background=element_blank(),
+                 legend.text = element_text(size = 13),
+                 legend.title = element_text(size = 14, vjust = 1),
+                 legend.key = element_blank(),
+                 axis.text.x = ggplot2::element_text(size = 13, angle = 90, vjust = 0.5),
+                 axis.text.y = ggplot2::element_text(size = 13, hjust = 1, face = "italic"),
+                 axis.title.x = ggplot2::element_text(size = 14, vjust = -0.5),
+                 axis.title.y = ggplot2::element_text(size = 14, vjust = 1.4), 
+                 strip.text.x = element_text(size = 12),
+                 strip.text.y = element_blank(),
+                 strip.background = element_blank(),
+                 panel.spacing.x = unit(0.5, "lines"), 
+                 legend.position = "right",
+                 panel.grid = element_line(color = "#d4d4d4", size = 0.1))+
+           coord_flip()
+
+    })  
+
+    
       output$dotplot <- renderPlot({
+        req(input$goButton)
         plot_dotplot()
       })
+
       
       
     #download button for pdf version of umap & dotplot
