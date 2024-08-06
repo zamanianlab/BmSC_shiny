@@ -1,7 +1,7 @@
 
 # Overview
 
-This repository contains the R code and data to produce the interactive shiny application for exploring the _B. malayi_ microfilariae single-cell transcriptomic atlas. For more background information on how the data was generated, please consult the associated [preprint](https://www.biorxiv.org/content/10.1101/2022.08.30.505865v1). 
+This repository contains the R code and data to produce the interactive shiny application for exploring the _B. malayi_ microfilariae single-cell transcriptomic atlas. For more background information on how the data was generated, please consult the associated [publication](https://elifesciences.org/articles/83100). 
 
 Please submit application and/or code issues to the repository Issues board. 
 
